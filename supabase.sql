@@ -77,7 +77,10 @@ select
   answers->>'barriers_other'                    as barriers_other,
   answers->>'demo'                              as demo,
   answers->>'open'                              as open_prompt,
-  id
+  id,
+  (select string_agg(x, '; ') from jsonb_array_elements_text(answers->'tools') x) as tools,
+  answers->>'tools_other'                      as tools_other,
+  answers->>'_survey_version'                  as survey_version
 from public.ai_survey_responses
 order by created_at;
 

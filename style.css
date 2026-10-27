@@ -74,6 +74,13 @@ button:active { transform: translateY(1px); }
 }
 .option[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
 .option[aria-pressed="true"]::after { content: "✓"; position: absolute; right: 16px; top: 50%; transform: translateY(-50%); color: var(--accent); font-weight: 700; }
+.option-label { display: block; }
+.option-description { display: block; margin-top: 4px; color: var(--muted); font-size: 13px; line-height: 1.35; }
+.option:disabled { opacity: .45; cursor: not-allowed; }
+.tool-options { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.tool-options .option { padding-left: 12px; padding-right: 30px; font-size: 15px; }
+.tool-options .option[aria-pressed="true"]::after { right: 10px; }
+.selection-count { color: var(--muted); font-size: 13px; margin: -6px 0 12px; min-height: 2.7em; }
 
 textarea, input[type="text"], input[type="email"] {
   width: 100%; font: inherit; color: var(--ink); background: var(--surface);

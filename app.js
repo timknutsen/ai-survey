@@ -7,6 +7,15 @@
       title: "How often do you use AI at work?",
       hint: "Any AI tool counts. Pick the closest answer.",
       options: ["Never", "A few times a year", "Monthly", "Weekly", "Daily", "Many times a day"],
+      descriptions: { "Daily": "About once a day", "Many times a day": "Several times during a workday" },
+    },
+    {
+      id: "tools", type: "multi", max: 3,
+      title: "Which AI tools do you currently use?",
+      hint: "Choose up to three you use most. Use Other for anything missing.",
+      options: ["ChatGPT", "Claude", "Claude Science", "Gemini", "Microsoft Copilot", "GitHub Copilot",
+        "Codex", "Cursor", "NotebookLM", "Perplexity", "Elicit", "Consensus", "scite", "ResearchRabbit", "Other", "None yet"],
+      exclusive: "None yet",
     },
     {
       id: "time_sink", type: "text",
@@ -15,18 +24,11 @@
       placeholder: "For example: cleaning spreadsheets before I can analyse the data.",
     },
     {
-      id: "ai_better", type: "choice",
-      title: "What would you most like AI to help with?",
-      hint: "Pick one. You do not need to know how it would work.",
-      options: ["Finding information", "Cleaning or analysing data", "Drafting text or slides",
-        "Checking analysis or code", "Summarising meetings or documents", "I'm not sure yet", "Other"],
-      other: true,
-    },
-    {
       id: "barriers", type: "choice", array: true,
       title: "What is your main barrier to using AI?",
       hint: "Pick the one that matters most to you.",
-      options: ["Not knowing where to start", "Accuracy / trust", "Confidentiality / data concerns",
+      options: ["I don't understand AI's real potential", "Life-science tools feel too complicated",
+        "Not knowing where to start", "Accuracy / trust", "Confidentiality / data concerns",
         "Access to suitable tools", "Time to learn", "Nothing", "Other"],
       other: true,
     },
@@ -39,8 +41,8 @@
     },
   ];
 
-  const STORE = "friction-survey-v2";
-  const LEGACY_STORE = "friction-survey-v1";
+  const STORE = "friction-survey-v3";
+  const LEGACY_STORES = ["friction-survey-v2", "friction-survey-v1"];
   const cfg = window.SURVEY_CONFIG || {};
   const params = new URLSearchParams(location.search);
   const app = document.getElementById("app");
@@ -55,21 +57,21 @@
 
   function freshState() {
     return {
-      version: 2, id: crypto.randomUUID(), step: 0,
+      version: 3, id: crypto.randomUUID(), step: 0,
       name: params.get("name") || "", team: params.get("team") || "", contact: "",
-      answers: { _survey_version: 2 }, completed: false, archetype: null,
+      answers: { _survey_version: 3 }, completed: false, archetype: null,
     };
   }
 
   function load() {
     const saved = readStore(STORE);
-    if (saved && saved.version === 2 && typeof saved.id === "string" &&
+    if (saved && saved.version === 3 && typeof saved.id === "string" &&
         Number.isInteger(saved.step) && saved.step >= 0 && saved.step <= QUESTIONS.length + 1 &&
         saved.answers && typeof saved.answers === "object" && !Array.isArray(saved.answers)) return saved;
-    const legacy = readStore(LEGACY_STORE);
+    const legacy = LEGACY_STORES.map(readStore).find(value => value && typeof value.id === "string");
     // Keep completed responses visible without posting or rewriting their original answers.
     if (legacy && legacy.completed && typeof legacy.id === "string") {
-      return { ...legacy, version: 2, step: QUESTIONS.length + 1, previousVersion: true };
+      return { ...legacy, version: 3, step: QUESTIONS.length + 1, previousVersion: true };
     }
     // The shortened survey starts a separate response; any old draft stays untouched.
     return freshState();
@@ -81,11 +83,8 @@
 
   function payload() {
     const answers = { ...state.answers };
-    if (answers.ai_better === "Other" && answers.ai_better_other?.trim()) {
-      answers.ai_better = answers.ai_better_other.trim();
-    }
-    if (state.answers.ai_better !== "Other") delete answers.ai_better_other;
     if (state.answers.barriers?.[0] !== "Other") delete answers.barriers_other;
+    if (!state.answers.tools?.includes("Other")) delete answers.tools_other;
     return {
       p_id: state.id, p_name: state.name.trim() || null, p_team: state.team.trim() || null,
       p_contact: state.contact.trim() || null, p_step: state.step, p_completed: state.completed,
@@ -165,19 +164,11 @@
     return { row: el("div", { class: "actions" }, skip, submit), submit };
   }
 
-  function optionalIdentity() {
-    const details = el("details", { class: "identity" }, el("summary", {}, "Add your name or team (optional)"));
-    for (const [key, label, placeholder] of [
-      ["name", "Your name", "Leave blank to answer without your name"],
-      ["team", "Team or department", "e.g. Genetics, Production, Sales"],
-    ]) {
-      const input = el("input", { type: "text", maxlength: 200, value: state[key], placeholder,
-        ...(key === "name" ? { autocomplete: "name" } : {}) });
-      input.addEventListener("input", () => { state[key] = input.value; save(); });
-      details.append(el("label", { class: "field" }, el("span", {}, label), input));
-    }
-    if (state.name || state.team) details.open = true;
-    return details;
+  function identityField(key, label, placeholder) {
+    const input = el("input", { type: "text", maxlength: 200, value: state[key], placeholder,
+      ...(key === "name" ? { autocomplete: "name" } : {}) });
+    input.addEventListener("input", () => { state[key] = input.value; persistLocal(); });
+    return el("label", { class: "field" }, el("span", {}, label), input);
   }
 
   function renderChoice(question, screen) {
@@ -199,19 +190,56 @@
         class: "option", "aria-label": option, "aria-pressed": String(selected() === option),
         onclick: () => {
           state.answers[question.id] = question.array ? [option] : option;
-          options.querySelectorAll("button").forEach(button => button.setAttribute("aria-pressed", String(button.textContent === option)));
+          options.querySelectorAll("button").forEach(button => button.setAttribute("aria-pressed", String(button.getAttribute("aria-label") === option)));
           submit.disabled = false;
           other.hidden = option !== "Other";
           contactField.hidden = !["Yes", "Maybe"].includes(option);
           if (question.followUp && option === "No") { state.contact = ""; contact.value = ""; }
           save();
         },
-      }, option));
+      }, el("span", { class: "option-label" }, option),
+      question.descriptions?.[option] ? el("span", { class: "option-description" }, question.descriptions[option]) : null));
     }
     screen.append(options);
     if (question.other) screen.append(other);
-    if (question.followUp) screen.append(contactField, optionalIdentity());
+    if (question.followUp) screen.append(contactField);
     screen.append(row);
+  }
+
+  function renderMulti(question, screen) {
+    const picked = new Set(state.answers[question.id] || []);
+    const { row, submit } = actions(picked.size > 0);
+    const limit = el("p", { class: "selection-count", id: "selection-limit", role: "status" });
+    const options = el("div", { class: "options tool-options", role: "group", "aria-label": question.title,
+      "aria-describedby": "question-hint selection-limit" });
+    const other = el("input", { type: "text", maxlength: 400, "aria-label": "Other AI tools",
+      placeholder: "Name the other tool", value: state.answers.tools_other || "" });
+    other.addEventListener("input", () => { state.answers.tools_other = other.value; save(); });
+    function update() {
+      options.querySelectorAll("button").forEach(button => {
+        const value = button.getAttribute("aria-label");
+        button.setAttribute("aria-pressed", String(picked.has(value)));
+        button.disabled = picked.size >= question.max && !picked.has(value) && value !== question.exclusive;
+      });
+      limit.textContent = `${picked.size} of ${question.max} selected` +
+        (picked.size === question.max ? ". Unselect one to choose another." : ".");
+      other.hidden = !picked.has("Other");
+      submit.disabled = picked.size === 0;
+    }
+    for (const option of question.options) {
+      options.append(el("button", { class: "option", "aria-label": option, onclick: () => {
+        if (picked.has(option)) picked.delete(option);
+        else {
+          if (option === question.exclusive) picked.clear();
+          else picked.delete(question.exclusive);
+          if (picked.size < question.max) picked.add(option);
+        }
+        state.answers[question.id] = [...picked];
+        update(); save();
+      } }, option));
+    }
+    update();
+    screen.append(limit, options, other, row);
   }
 
   function renderText(question, screen) {
@@ -240,6 +268,9 @@
         el("h1", { tabindex: -1 }, "What slows your work down?"),
         el("p", { class: "hint" }, "Tell us about one task and where AI might help. No AI experience needed."),
         el("p", { class: "small" }, "Mostly quick choices, with one short written answer. Every question is optional. Your name is optional too."),
+        identityField("name", "Your name (optional)", "Leave blank to answer without your name"),
+        el("details", { class: "identity", open: !!state.team }, el("summary", {}, "Add your team (optional)"),
+          identityField("team", "Team or department", "e.g. Genetics, Production, Sales")),
         el("div", { class: "actions" }, el("button", { class: "primary", onclick: next }, "Start")),
         el("p", { class: "small" }, "Your progress is saved as you go."),
       );
@@ -259,6 +290,7 @@
       screen.append(el("p", { class: "eyebrow" }, `Question ${state.step} of ${QUESTIONS.length}`),
         el("h1", { tabindex: -1 }, question.title), el("p", { class: "hint", id: "question-hint" }, question.hint));
       if (question.type === "text") renderText(question, screen);
+      else if (question.type === "multi") renderMulti(question, screen);
       else renderChoice(question, screen);
     }
     app.replaceChildren(screen);
