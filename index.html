@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Work Friction Survey</title>
-  <meta name="description" content="Five minutes on what slows your work down.">
+  <meta name="description" content="Five quick questions about work friction and useful AI help. About three minutes.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
   <header class="top">
@@ -17,8 +17,11 @@
     <span id="count" class="count"></span>
   </header>
   <main id="app" aria-live="polite"></main>
-  <footer id="status" class="status"></footer>
+  <footer class="status">
+    <span id="status" role="status"></span>
+    <button id="retry" class="ghost" hidden>Retry saving</button>
+  </footer>
   <script src="config.js"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=2"></script>
 </body>
 </html>
