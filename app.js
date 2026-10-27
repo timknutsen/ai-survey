@@ -13,8 +13,14 @@
       id: "tools", type: "multi", max: 3,
       title: "Which AI tools do you currently use?",
       hint: "Choose up to three you use most. Use Other for anything missing.",
-      options: ["ChatGPT", "Claude", "Claude Science", "Gemini", "Microsoft Copilot", "GitHub Copilot",
-        "Codex", "Cursor", "NotebookLM", "Perplexity", "Elicit", "Consensus", "scite", "ResearchRabbit", "Other", "None yet"],
+      groups: [
+        { label: "General AI assistants", options: ["ChatGPT", "Claude", "Claude Science", "Gemini", "Microsoft Copilot",
+          "Grok", "DeepSeek", "Mistral Le Chat", "Meta AI", "Poe"] },
+        { label: "Research and life sciences", options: ["NotebookLM", "Perplexity", "Elicit", "Consensus", "scite",
+          "ResearchRabbit", "Semantic Scholar", "SciSpace", "Scholarcy", "Connected Papers", "Litmaps", "AlphaFold"] },
+        { label: "Coding", options: ["GitHub Copilot", "Codex", "Cursor", "Windsurf", "Replit AI"] },
+        { label: "Other", options: ["Other", "None yet"] },
+      ],
       exclusive: "None yet",
     },
     {
@@ -24,13 +30,13 @@
       placeholder: "For example: cleaning spreadsheets before I can analyse the data.",
     },
     {
-      id: "barriers", type: "choice", array: true,
-      title: "What is your main barrier to using AI?",
-      hint: "Pick the one that matters most to you.",
+      id: "barriers", type: "multi", max: 3,
+      title: "What holds you back from using AI more?",
+      hint: "Choose up to three barriers that matter most to you.",
       options: ["I don't understand AI's real potential", "Life-science tools feel too complicated",
         "Not knowing where to start", "Accuracy / trust", "Confidentiality / data concerns",
         "Access to suitable tools", "Time to learn", "Nothing", "Other"],
-      other: true,
+      exclusive: "Nothing",
     },
     {
       id: "demo", type: "choice",
@@ -41,8 +47,7 @@
     },
   ];
 
-  const STORE = "friction-survey-v3";
-  const LEGACY_STORES = ["friction-survey-v2", "friction-survey-v1"];
+  const STORE = "friction-survey-v4";
   const cfg = window.SURVEY_CONFIG || {};
   const params = new URLSearchParams(location.search);
   const app = document.getElementById("app");
@@ -57,23 +62,18 @@
 
   function freshState() {
     return {
-      version: 3, id: crypto.randomUUID(), step: 0,
+      version: 4, id: crypto.randomUUID(), step: 0,
       name: params.get("name") || "", team: params.get("team") || "", contact: "",
-      answers: { _survey_version: 3 }, completed: false, archetype: null,
+      answers: { _survey_version: 4 }, completed: false, archetype: null,
     };
   }
 
   function load() {
     const saved = readStore(STORE);
-    if (saved && saved.version === 3 && typeof saved.id === "string" &&
+    if (saved && saved.version === 4 && typeof saved.id === "string" &&
         Number.isInteger(saved.step) && saved.step >= 0 && saved.step <= QUESTIONS.length + 1 &&
         saved.answers && typeof saved.answers === "object" && !Array.isArray(saved.answers)) return saved;
-    const legacy = LEGACY_STORES.map(readStore).find(value => value && typeof value.id === "string");
-    // Keep completed responses visible without posting or rewriting their original answers.
-    if (legacy && legacy.completed && typeof legacy.id === "string") {
-      return { ...legacy, version: 3, step: QUESTIONS.length + 1, previousVersion: true };
-    }
-    // The shortened survey starts a separate response; any old draft stays untouched.
+    // This version starts a fresh survey after the response reset.
     return freshState();
   }
 
@@ -83,7 +83,7 @@
 
   function payload() {
     const answers = { ...state.answers };
-    if (state.answers.barriers?.[0] !== "Other") delete answers.barriers_other;
+    if (!state.answers.barriers?.includes("Other")) delete answers.barriers_other;
     if (!state.answers.tools?.includes("Other")) delete answers.tools_other;
     return {
       p_id: state.id, p_name: state.name.trim() || null, p_team: state.team.trim() || null,
@@ -210,11 +210,14 @@
     const picked = new Set(state.answers[question.id] || []);
     const { row, submit } = actions(picked.size > 0);
     const limit = el("p", { class: "selection-count", id: "selection-limit", role: "status" });
-    const options = el("div", { class: "options tool-options", role: "group", "aria-label": question.title,
+    const options = el("div", { class: question.groups ? "option-groups" : "options", role: "group", "aria-label": question.title,
       "aria-describedby": "question-hint selection-limit" });
-    const other = el("input", { type: "text", maxlength: 400, "aria-label": "Other AI tools",
-      placeholder: "Name the other tool", value: state.answers.tools_other || "" });
-    other.addEventListener("input", () => { state.answers.tools_other = other.value; save(); });
+    const otherKey = question.id + "_other";
+    const other = el("input", { type: "text", maxlength: 400,
+      "aria-label": question.id === "tools" ? "Other AI tools" : "Other barriers",
+      placeholder: question.id === "tools" ? "Name the other tool" : "Tell us briefly (optional)",
+      value: state.answers[otherKey] || "" });
+    other.addEventListener("input", () => { state.answers[otherKey] = other.value; save(); });
     function update() {
       options.querySelectorAll("button").forEach(button => {
         const value = button.getAttribute("aria-label");
@@ -226,8 +229,8 @@
       other.hidden = !picked.has("Other");
       submit.disabled = picked.size === 0;
     }
-    for (const option of question.options) {
-      options.append(el("button", { class: "option", "aria-label": option, onclick: () => {
+    function optionButton(option) {
+      return el("button", { class: "option", "aria-label": option, onclick: () => {
         if (picked.has(option)) picked.delete(option);
         else {
           if (option === question.exclusive) picked.clear();
@@ -236,7 +239,16 @@
         }
         state.answers[question.id] = [...picked];
         update(); save();
-      } }, option));
+      } }, option);
+    }
+    if (question.groups) {
+      for (const group of question.groups) {
+        options.append(el("section", { class: "option-group", "aria-label": group.label },
+          el("h2", { class: "option-group-title" }, group.label),
+          el("div", { class: "options tool-options" }, group.options.map(optionButton))));
+      }
+    } else {
+      for (const option of question.options) options.append(optionButton(option));
     }
     update();
     screen.append(limit, options, other, row);

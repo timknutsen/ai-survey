@@ -80,6 +80,8 @@ button:active { transform: translateY(1px); }
 .tool-options { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .tool-options .option { padding-left: 12px; padding-right: 30px; font-size: 15px; }
 .tool-options .option[aria-pressed="true"]::after { right: 10px; }
+.option-group + .option-group { margin-top: 20px; }
+.option-group-title { margin: 0 0 8px; font-size: 14px; color: var(--muted); font-weight: 600; }
 .selection-count { color: var(--muted); font-size: 13px; margin: -6px 0 12px; min-height: 2.7em; }
 
 textarea, input[type="text"], input[type="email"] {
@@ -97,7 +99,7 @@ label.field span { display: block; font-size: 14px; color: var(--muted); margin-
 .identity summary { color: var(--muted); cursor: pointer; font-size: 14px; }
 .identity[open] summary { margin-bottom: 16px; }
 .follow-up { margin-top: 18px; }
-.options + input { margin-top: 12px; }
+.options + input, .option-groups + input { margin-top: 12px; }
 .new-response { margin-top: 20px; }
 .frequency-options { grid-template-columns: 1fr 1fr; }
 .status { text-align: center; font-size: 13px; color: var(--muted); padding: 0 16px 16px; min-height: 2em; }
