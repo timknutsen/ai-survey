@@ -35,3 +35,9 @@ Version 4 writes `frequency`, `tools`, `tools_other` (when Other is selected), `
 The version 4 reset starts a fresh response with a new id and does not reuse earlier browser progress. Browser progress for new responses is stored under `friction-survey-v4`. Older open tabs should be refreshed before answering the new survey.
 
 The anon key can only call `save_ai_survey_response`; it cannot read or list responses.
+
+## Private results dashboard
+
+The dashboard at `/ai-survey/dashboard/` uses email-link sign-in and refreshes aggregate counts every 30 seconds while open. The server checks the confirmed owner's Supabase Auth identity before returning the dashboard aggregate. It does not return names, contact details, identifiers, or free-text answers. Tool and barrier values are limited to known survey choices, with other values grouped as `Other`.
+
+`dashboard/aggregate.sql` defines the dashboard function. The database remains the source of truth. Completed responses are used for charts; the in-progress count is shown separately. Counts are responses, not necessarily unique people. The function is executable by authenticated accounts, but an explicit verified-owner check denies other accounts. The anonymous survey key cannot call it.

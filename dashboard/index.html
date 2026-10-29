@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex, nofollow">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src https://wopthhuptkqgeapyovlr.supabase.co; style-src 'self'; script-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'self'">
+  <title>AI survey results</title>
+  <link rel="stylesheet" href="dashboard.css">
+  <script defer src="../config.js"></script>
+  <script defer src="dashboard.js"></script>
+</head>
+<body>
+  <header class="top"><div><p class="eyebrow">WORK &amp; AI</p><h1>Survey results</h1></div><div class="toolbar" id="toolbar" hidden><button id="refresh" class="secondary">Refresh</button><button id="signout" class="quiet">Sign out</button></div></header>
+  <main>
+    <section id="login" class="login card" hidden>
+      <h2>Sign in</h2><p>Enter the email address authorised for this dashboard. We’ll send you a sign-in link.</p>
+      <form id="login-form"><label for="email">Email address</label><input type="email" id="email" autocomplete="email" required><button class="primary" type="submit">Send sign-in link</button></form>
+      <p id="login-message" class="message" role="status"></p>
+    </section>
+    <section id="content" hidden>
+      <div class="context"><p id="updated" role="status">Loading results…</p><p>Completed responses only, unless noted.</p></div>
+      <div class="metrics">
+        <article class="metric card"><span>Completed responses</span><strong id="completed">–</strong></article>
+        <article class="metric card"><span>In progress</span><strong id="partial">–</strong></article>
+        <article class="metric card"><span>Task examples shared</span><strong id="tasks">–</strong></article>
+      </div>
+      <div class="grid">
+        <article class="card chart"><h2>How often people use AI</h2><p class="caption">One choice per respondent</p><div id="frequency" class="bars"></div></article>
+        <article class="card chart"><h2>AI tools used</h2><p class="caption">Up to three tools per respondent</p><div id="tools" class="bars"></div></article>
+        <article class="card chart"><h2>Barriers to using AI</h2><p class="caption">Up to three barriers per respondent</p><div id="barriers" class="bars"></div></article>
+        <article class="card chart"><h2>Interest in practical help</h2><p class="caption">One choice per respondent</p><div id="follow_up" class="bars"></div></article>
+      </div>
+      <p class="footnote">Counts represent survey responses, not necessarily distinct people. Some questions can be skipped.</p>
+    </section>
+    <p id="error" class="error" role="alert" hidden></p>
+  </main>
+</body>
+</html>
