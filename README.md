@@ -38,7 +38,11 @@ The anon key can only call `save_ai_survey_response`; it cannot read or list res
 
 ## Private results dashboard
 
-The dashboard at `/ai-survey/dashboard/` uses email-link sign-in and refreshes aggregate counts every 30 seconds while open. The server checks the confirmed owner's Supabase Auth identity before returning the dashboard aggregate. It does not return names, contact details, identifiers, or free-text answers. Tool and barrier values are limited to known survey choices, with other values grouped as `Other`.
+The dashboard at `/ai-survey/dashboard/` uses email-link sign-in and refreshes aggregate counts every 30 seconds while open. A successful sign-in is remembered in that browser for up to 30 days; Sign out revokes the current session. Supabase Auth stores session tokens in browser local storage and rotates refresh tokens using the pinned Supabase JS client. A browser without a remembered session needs a fresh email link. The built-in Supabase email provider has a sending rate limit; the dashboard explains when it is reached.
+
+The server checks the confirmed owner's Supabase Auth identity before returning the dashboard aggregate. It does not return names, contact details, identifiers, or free-text answers. Tool and barrier values are limited to known survey choices, with other values grouped as `Other`.
+
+The vendored browser client is the unmodified UMD bundle from `@supabase/supabase-js@2.118.0`, MIT-licensed; its license is included in `dashboard/vendor/`.
 
 Task examples are summarized as overlapping themes using keyword rules in the database function. Counts are per completed response with a nonempty example. An example can contribute to several themes; examples matching none are counted as `Not classified`. This is a simple classification rather than an AI interpretation, and the original wording is never returned to the dashboard.
 

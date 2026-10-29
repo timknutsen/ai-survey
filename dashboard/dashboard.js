@@ -3,23 +3,57 @@
   const config = window.SURVEY_CONFIG;
   const base = config.supabaseUrl.replace(/\/$/, '');
   const key = config.supabaseKey;
-  const storage = 'ai-survey-dashboard-session';
+  const legacyStorage = 'ai-survey-dashboard-session';
+  const rememberUntilKey = 'ai-survey-dashboard-remember-until';
+  const rememberDuration = 30 * 24 * 60 * 60 * 1000;
   const el = id => document.getElementById(id);
   const headers = token => ({ apikey: key, 'Content-Type': 'application/json', ...(token ? {Authorization: 'Bearer ' + token} : {}) });
-  let token = '';
+  const auth = window.supabase.createClient(base, key, {auth: {
+    storageKey: 'ai-survey-dashboard-auth', persistSession: true,
+    autoRefreshToken: true, detectSessionInUrl: true, flowType: 'implicit',
+  }}).auth;
+  let legacyToken = sessionStorage.getItem(legacyStorage) || '';
+  let hasSession = false;
   let refreshing = false;
+  let loginNotice = '';
 
-  // Supabase returns the verified session in the URL fragment. Remove it before rendering.
+  // A successful link can start a new 30-day remembered period on this browser.
   const fragment = new URLSearchParams(location.hash.slice(1));
-  const incoming = fragment.get('access_token');
-  if (location.hash) history.replaceState(null, '', location.pathname + location.search);
-  if (incoming) { sessionStorage.setItem(storage, incoming); token = incoming; }
-  else token = sessionStorage.getItem(storage) || '';
+  const isNewLink = fragment.has('access_token') && fragment.has('refresh_token');
+  if (isNewLink) {
+    try { localStorage.setItem(rememberUntilKey, String(Date.now() + rememberDuration)); } catch { /* Private browsing may not persist. */ }
+    sessionStorage.removeItem(legacyStorage); legacyToken = '';
+  }
 
   function showLogin(message = '') {
-    token = ''; sessionStorage.removeItem(storage);
+    hasSession = false;
     el('content').hidden = true; el('toolbar').hidden = true; el('login').hidden = false;
     el('error').hidden = true; el('login-message').textContent = message;
+  }
+  function rememberDeadline() {
+    try { return Number(localStorage.getItem(rememberUntilKey)) || 0; } catch { return 0; }
+  }
+  function clearRememberDeadline() {
+    try { localStorage.removeItem(rememberUntilKey); } catch { /* Storage may be unavailable. */ }
+  }
+  async function currentToken() {
+    const {data, error} = await auth.getSession();
+    if (error) throw error;
+    if (data.session) {
+      let deadline = rememberDeadline();
+      if (!deadline) {
+        deadline = Date.now() + rememberDuration;
+        try { localStorage.setItem(rememberUntilKey, String(deadline)); } catch { /* Session remains available for this visit. */ }
+      }
+      if (Date.now() >= deadline) {
+        const result = await auth.signOut({scope:'local'});
+        if (result.error) throw result.error;
+        clearRememberDeadline();
+        const expired = new Error('Remembered session expired'); expired.status = 401; throw expired;
+      }
+      return data.session.access_token;
+    }
+    return legacyToken;
   }
   function bars(id, rows, total, population = 'completed responses') {
     const target = el(id); target.replaceChildren();
@@ -52,11 +86,14 @@
     return body;
   }
   async function refresh() {
-    if (!token || refreshing) return;
+    if (refreshing) return;
     refreshing = true; el('refresh').disabled = true;
     try {
+      const token = await currentToken();
+      if (!token) { showLogin(loginNotice); return; }
       const data = await request('/rest/v1/rpc/ai_survey_dashboard', { method: 'POST', headers: headers(token), body: '{}' });
       if (!Number.isInteger(data.completed) || !Number.isInteger(data.partial)) throw new Error('Unexpected results format');
+      hasSession = true; loginNotice = '';
       el('login').hidden = true; el('toolbar').hidden = false; el('content').hidden = false; el('error').hidden = true;
       el('completed').textContent = data.completed; el('partial').textContent = data.partial; el('tasks').textContent = data.task_examples;
       el('task-summary').textContent = summarizeTasks(data.task_themes, data.task_examples);
@@ -64,8 +101,14 @@
       for (const id of ['frequency','tools','barriers','follow_up']) bars(id, data[id], data.completed);
       el('updated').textContent = 'Updated ' + new Date(data.generated_at).toLocaleString(undefined, {dateStyle:'medium',timeStyle:'short'});
     } catch (error) {
-      if (error.status === 401 || error.status === 403) showLogin('Your session has expired or this account cannot access the dashboard.');
-      else { el('error').hidden = false; el('error').textContent = 'Could not refresh the results. Please try again.'; }
+      if (error.status === 401 || error.status === 403) {
+        legacyToken = ''; sessionStorage.removeItem(legacyStorage);
+        await auth.signOut({scope:'local'}); clearRememberDeadline();
+        showLogin('Your session has expired or this account cannot access the dashboard.');
+      } else {
+        if (el('content').hidden) el('login').hidden = false;
+        el('error').hidden = false; el('error').textContent = 'Could not refresh the results. Please try again.';
+      }
     } finally { refreshing = false; el('refresh').disabled = false; }
   }
   el('login-form').addEventListener('submit', async event => {
@@ -74,19 +117,50 @@
     const button = event.currentTarget.querySelector('button'); button.disabled = true;
     el('login-message').textContent = 'Sending…';
     try {
-      await request('/auth/v1/otp?redirect_to=' + encodeURIComponent(location.origin + location.pathname), {
-        method: 'POST', headers: headers(), body: JSON.stringify({email, create_user: true})
-      });
+      const {error} = await auth.signInWithOtp({email, options:{
+        emailRedirectTo: location.origin + location.pathname, shouldCreateUser: false,
+      }});
+      if (error) throw error;
       el('login-message').textContent = 'Check your email for the sign-in link. Open it in this browser.';
-    } catch (error) { el('login-message').textContent = 'Could not send a sign-in link. Please try again.'; }
-    finally { button.disabled = false; }
+    } catch (error) {
+      if (error.code === 'over_email_send_rate_limit' || /email rate limit/i.test(error.message || '')) {
+        el('login-message').textContent = 'The email sending limit has been reached. Wait about an hour before requesting another link.';
+      } else if (error.status === 429) {
+        el('login-message').textContent = 'Too many sign-in requests. Please wait before trying again.';
+      } else {
+        el('login-message').textContent = 'Could not send a sign-in link. Check the email address and try again.';
+      }
+    } finally { button.disabled = false; }
   });
   el('refresh').addEventListener('click', refresh);
-  el('signout').addEventListener('click', () => {
-    const previous = token; showLogin('Signed out.');
-    fetch(base + '/auth/v1/logout', {method:'POST', headers:headers(previous)}).catch(() => {});
+  el('signout').addEventListener('click', async () => {
+    const button = el('signout'); button.disabled = true;
+    if (legacyToken) {
+      try {
+        await request('/auth/v1/logout?scope=local', {method:'POST', headers:headers(legacyToken)});
+      } catch (error) {
+        if (error.status !== 401 && error.status !== 403) {
+          button.disabled = false;
+          el('error').hidden = false; el('error').textContent = 'Could not sign out. Check your connection and try again.';
+          return;
+        }
+      }
+    }
+    const {error} = await auth.signOut({scope:'local'});
+    button.disabled = false;
+    if (error) { el('error').hidden = false; el('error').textContent = 'Could not sign out. Check your connection and try again.'; return; }
+    legacyToken = ''; sessionStorage.removeItem(legacyStorage); clearRememberDeadline();
+    loginNotice = 'Signed out.'; showLogin(loginNotice);
   });
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && token) refresh(); });
-  setInterval(() => { if (!document.hidden && token) refresh(); }, 30000);
-  if (token) refresh(); else showLogin();
+  auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_OUT') {
+      legacyToken = ''; sessionStorage.removeItem(legacyStorage); clearRememberDeadline();
+      showLogin(loginNotice);
+    } else if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session) {
+      setTimeout(refresh, 0);
+    }
+  });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && hasSession) refresh(); });
+  setInterval(() => { if (!document.hidden && hasSession) refresh(); }, 30000);
+  refresh();
 })();
