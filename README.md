@@ -36,14 +36,12 @@ The version 4 reset starts a fresh response with a new id and does not reuse ear
 
 The anon key can only call `save_ai_survey_response`; it cannot read or list responses.
 
-## Private results dashboard
+## Temporary public results dashboard
 
-The dashboard at `/ai-survey/dashboard/` uses email-link sign-in and refreshes aggregate counts every 30 seconds while open. A successful sign-in is remembered in that browser for up to 30 days; Sign out revokes the current session. Supabase Auth stores session tokens in browser local storage and rotates refresh tokens using the pinned Supabase JS client. A browser without a remembered session needs a fresh email link. The built-in Supabase email provider has a sending rate limit; the dashboard explains when it is reached.
+The unlisted dashboard at `/ai-survey/dashboard/` loads aggregate counts without sign-in and refreshes every 30 seconds. The page requests that search engines do not index it, but the URL and aggregate API are public and discoverable. Anyone can access these counts.
 
-The server checks the confirmed owner's Supabase Auth identity before returning the dashboard aggregate. It does not return names, contact details, identifiers, or free-text answers. Tool and barrier values are limited to known survey choices, with other values grouped as `Other`.
+The dashboard function returns no names, contact details, identifiers, or free-text answers. Tool and barrier values are limited to known survey choices, with other values grouped as `Other`. Small aggregate counts may still reveal information about individuals.
 
-The vendored browser client is the unmodified UMD bundle from `@supabase/supabase-js@2.118.0`, MIT-licensed; its license is included in `dashboard/vendor/`.
+Task examples are summarized as overlapping themes using keyword rules in the database function. Counts are per completed response with a nonempty example. An example can contribute to several themes; examples matching none are counted as `Not classified`. The original wording is never returned to the dashboard.
 
-Task examples are summarized as overlapping themes using keyword rules in the database function. Counts are per completed response with a nonempty example. An example can contribute to several themes; examples matching none are counted as `Not classified`. This is a simple classification rather than an AI interpretation, and the original wording is never returned to the dashboard.
-
-`dashboard/aggregate.sql` defines the dashboard function. The database remains the source of truth. Completed responses are used for charts; the in-progress count is shown separately. Counts are responses, not necessarily unique people. The function is executable by authenticated accounts, but an explicit verified-owner check denies other accounts. The anonymous survey key cannot call it.
+`dashboard/aggregate.sql` defines the temporary public aggregate function. Completed responses are used for charts; the in-progress count is shown separately. Counts are responses, not necessarily unique people. Raw response tables and views remain unavailable to the public key.

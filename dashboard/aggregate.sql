@@ -1,4 +1,4 @@
--- Aggregate-only dashboard. The verified owner can read counts, never response rows.
+-- Temporary public aggregate dashboard. Never returns response rows or free text.
 create or replace function public.ai_survey_dashboard()
 returns jsonb
 language plpgsql
@@ -6,16 +6,6 @@ security definer
 set search_path = pg_catalog, public
 as $$
 begin
-  if not exists (
-    select 1 from auth.users u
-    where u.id = auth.uid()
-      and lower(u.email) = 'timknutsen@gmail.com'
-      and u.email_confirmed_at is not null
-      and not coalesce(u.is_anonymous, false)
-  ) then
-    raise exception 'Dashboard access denied' using errcode = '42501';
-  end if;
-
   return (
     with responses as (
       select id, completed, answers from public.ai_survey_responses
@@ -91,4 +81,4 @@ begin
 end;
 $$;
 revoke all on function public.ai_survey_dashboard() from public, anon, authenticated;
-grant execute on function public.ai_survey_dashboard() to authenticated;
+grant execute on function public.ai_survey_dashboard() to anon, authenticated;
