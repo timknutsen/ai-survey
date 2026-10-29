@@ -40,4 +40,6 @@ The anon key can only call `save_ai_survey_response`; it cannot read or list res
 
 The dashboard at `/ai-survey/dashboard/` uses email-link sign-in and refreshes aggregate counts every 30 seconds while open. The server checks the confirmed owner's Supabase Auth identity before returning the dashboard aggregate. It does not return names, contact details, identifiers, or free-text answers. Tool and barrier values are limited to known survey choices, with other values grouped as `Other`.
 
+Task examples are summarized as overlapping themes using keyword rules in the database function. Counts are per completed response with a nonempty example. An example can contribute to several themes; examples matching none are counted as `Not classified`. This is a simple classification rather than an AI interpretation, and the original wording is never returned to the dashboard.
+
 `dashboard/aggregate.sql` defines the dashboard function. The database remains the source of truth. Completed responses are used for charts; the in-progress count is shown separately. Counts are responses, not necessarily unique people. The function is executable by authenticated accounts, but an explicit verified-owner check denies other accounts. The anonymous survey key cannot call it.

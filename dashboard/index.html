@@ -7,9 +7,9 @@
   <meta name="robots" content="noindex, nofollow">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src https://wopthhuptkqgeapyovlr.supabase.co; style-src 'self'; script-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'self'">
   <title>AI survey results</title>
-  <link rel="stylesheet" href="dashboard.css">
+  <link rel="stylesheet" href="dashboard.css?v=2">
   <script defer src="../config.js"></script>
-  <script defer src="dashboard.js"></script>
+  <script defer src="dashboard.js?v=2"></script>
 </head>
 <body>
   <header class="top"><div><p class="eyebrow">WORK &amp; AI</p><h1>Survey results</h1></div><div class="toolbar" id="toolbar" hidden><button id="refresh" class="secondary">Refresh</button><button id="signout" class="quiet">Sign out</button></div></header>
@@ -26,6 +26,7 @@
         <article class="metric card"><span>In progress</span><strong id="partial">–</strong></article>
         <article class="metric card"><span>Task examples shared</span><strong id="tasks">–</strong></article>
       </div>
+      <article class="card chart task-themes"><h2>What takes too much time?</h2><p class="caption">Themes in written examples, grouped by keywords. One example can match several themes.</p><p id="task-summary" class="task-summary"></p><div id="task_themes" class="bars"></div></article>
       <div class="grid">
         <article class="card chart"><h2>How often people use AI</h2><p class="caption">One choice per respondent</p><div id="frequency" class="bars"></div></article>
         <article class="card chart"><h2>AI tools used</h2><p class="caption">Up to three tools per respondent</p><div id="tools" class="bars"></div></article>

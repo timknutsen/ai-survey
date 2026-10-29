@@ -51,12 +51,37 @@ begin
     follow_up as (
       select case when answers->>'demo' in ('Yes','Maybe','No') then answers->>'demo' else 'No answer' end as label,
         count(*) as n from finished group by 1
+    ),
+    task_examples as (
+      select id, lower(trim(answers->>'time_sink')) as task
+      from finished where length(trim(coalesce(answers->>'time_sink',''))) > 0
+    ),
+    theme_rules(label, pattern) as (
+      values
+        ('Writing and reporting', 'report|rapport|presentations?|presentasjoner?|applications?|søknad|skriv'),
+        ('Finding and reviewing information', 'search|søk|literatur|papers?|articles?|published|documents?|dokument|files?|contracts?|looking|lookup|fishtalk|patent'),
+        ('Data preparation and analysis', 'data|spreadsheet|regneark|koblingsfil|analys|statistics|statistikk|genotype|fishtalk|pathway'),
+        ('Samples and traceability', 'fish.?groups?|genotype|prøver|prøve|samples?|shipments?|innsending|skjema|forms?'),
+        ('Coding and scripts', 'cod(e|ing|es)|scripts?|kode|programmer|pipeline'),
+        ('Planning and coordination', 'meetings?|møte|organize my day|organise my day|planlegging|coordinat|schedule'),
+        ('Using AI tools', 'gpt|prompt|ai tool|kunstig intelligens')
+    ),
+    task_matches as (
+      select t.id, r.label from task_examples t cross join theme_rules r where t.task ~ r.pattern
+    ),
+    task_themes as (
+      select label, count(distinct id) as n from task_matches group by label
+      union all
+      select 'Not classified', count(*) from task_examples t
+      where not exists (select 1 from task_matches m where m.id = t.id)
+      having count(*) > 0
     )
     select jsonb_build_object(
       'generated_at', now(),
       'completed', (select count(*) from finished),
       'partial', (select count(*) from responses where completed is false),
       'task_examples', (select count(*) from finished where length(trim(coalesce(answers->>'time_sink',''))) > 0),
+      'task_themes', (select coalesce(jsonb_agg(to_jsonb(task_themes) order by n desc, label),'[]'::jsonb) from task_themes),
       'frequency', (select coalesce(jsonb_agg(to_jsonb(frequency) order by n desc, label),'[]'::jsonb) from frequency),
       'tools', (select coalesce(jsonb_agg(to_jsonb(tools) order by n desc, label),'[]'::jsonb) from tools),
       'barriers', (select coalesce(jsonb_agg(to_jsonb(barriers) order by n desc, label),'[]'::jsonb) from barriers),
